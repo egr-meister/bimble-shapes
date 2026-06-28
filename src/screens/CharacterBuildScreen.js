@@ -331,21 +331,23 @@ export default function CharacterBuildScreen({ navigation, route }) {
 
       <HintCard text={hint.text} tone={hint.tone} style={styles.hint} />
 
-      <View style={styles.trayWrap}>
-        {trayPieces.length === 0 ? (
-          <Text style={styles.trayDone}>All shapes placed! 🎉</Text>
-        ) : (
-          trayPieces.map((piece) => (
-            <DraggablePiece
-              key={piece.id}
-              piece={piece}
-              size={54}
-              onDragMove={handleDragMove}
-              onDragRelease={handleDragRelease}
-            />
-          ))
-        )}
-      </View>
+      {!completed ? (
+        <View style={styles.trayWrap}>
+          {trayPieces.length === 0 ? (
+            <Text style={styles.trayDone}>All shapes placed! 🎉</Text>
+          ) : (
+            trayPieces.map((piece) => (
+              <DraggablePiece
+                key={piece.id}
+                piece={piece}
+                size={54}
+                onDragMove={handleDragMove}
+                onDragRelease={handleDragRelease}
+              />
+            ))
+          )}
+        </View>
+      ) : null}
 
       {completed ? (
         <View style={styles.overlay}>
@@ -464,6 +466,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
+    // Must sit above the tray pieces, which use a high elevation while dragging.
+    zIndex: 100,
+    elevation: 100,
   },
   completePanel: {
     backgroundColor: colors.card,
