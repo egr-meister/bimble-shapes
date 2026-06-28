@@ -30,7 +30,7 @@ import {
   getHintForPiece,
   DIFFICULTIES,
 } from '../utils/characterBuildHelpers';
-import { findSlotAtPoint } from '../utils/dragDropHelpers';
+import { isPointInsideRect } from '../utils/dragDropHelpers';
 import { loadAppData } from '../storage/appStorage';
 import { recordCharacterResult } from '../storage/appStorage';
 import { playCorrectSoundIfEnabled, playCompletionSoundIfEnabled } from '../utils/soundHelpers';
@@ -59,7 +59,7 @@ function DraggablePiece({ piece, size, onDragMove, onDragRelease }) {
         pan.x.setValue(g.dx);
         pan.y.setValue(g.dy);
         if (handlers.current.onDragMove) {
-          handlers.current.onDragMove({ x: g.moveX, y: g.moveY });
+          handlers.current.onDragMove({ x: g.moveX, y: g.moveY }, piece);
         }
       },
       onPanResponderRelease: (e, g) => {
@@ -193,30 +193,40 @@ export default function CharacterBuildScreen({ navigation, route }) {
     };
   }, []);
 
-  const slotRects = useCallback(() => {
+  // Rectangle (in window coordinates) for a specific slot, padded so drops
+  // are forgiving for small hands. Returns null if not measured yet.
+  const rectForSlotId = useCallback((slotId) => {
     const layout = boardLayoutRef.current;
     const state = buildStateRef.current;
-    if (!layout || !state) {
-      return [];
+    if (!layout || !state || !slotId) {
+      return null;
+    }
+    const slot = (state.slots ?? []).find((s) => s.id === slotId);
+    if (!slot) {
+      return null;
     }
     const { pageX, pageY, scale } = layout;
-    return (state.slots ?? []).map((slot) => ({
-      slotId: slot.id,
-      rect: {
-        x: pageX + slot.x * scale - HIT_PADDING,
-        y: pageY + slot.y * scale - HIT_PADDING,
-        width: slot.width * scale + HIT_PADDING * 2,
-        height: slot.height * scale + HIT_PADDING * 2,
-      },
-    }));
+    return {
+      x: pageX + slot.x * scale - HIT_PADDING,
+      y: pageY + slot.y * scale - HIT_PADDING,
+      width: slot.width * scale + HIT_PADDING * 2,
+      height: slot.height * scale + HIT_PADDING * 2,
+    };
   }, []);
 
+  // Each piece is only ever tested against its OWN target slot, so
+  // overlapping slots (an eye inside a head, a window inside a body, etc.)
+  // never block one another.
   const handleDragMove = useCallback(
-    (point) => {
-      const slotId = findSlotAtPoint(point, slotRects());
-      setHighlightedSlotId(slotId);
+    (point, piece) => {
+      const rect = rectForSlotId(piece?.slotId);
+      if (rect && isPointInsideRect(point, rect)) {
+        setHighlightedSlotId(piece.slotId);
+      } else {
+        setHighlightedSlotId(null);
+      }
     },
-    [slotRects]
+    [rectForSlotId]
   );
 
   const finishCompletion = useCallback(
@@ -260,11 +270,13 @@ export default function CharacterBuildScreen({ navigation, route }) {
         return false;
       }
 
-      const slotId = findSlotAtPoint(point, slotRects());
-      const slot = (state.slots ?? []).find((s) => s.id === slotId) ?? null;
+      // Test only against this piece's own designated slot.
+      const slot = (state.slots ?? []).find((s) => s.id === piece.slotId) ?? null;
+      const rect = rectForSlotId(piece.slotId);
       const alreadyPlaced = (state.placedPieceIds ?? []).includes(piece.id);
+      const droppedOnTarget = !!rect && isPointInsideRect(point, rect);
 
-      if (slot && !alreadyPlaced && checkPieceMatchesSlot(piece, slot)) {
+      if (slot && rect && !alreadyPlaced && droppedOnTarget && checkPieceMatchesSlot(piece, slot)) {
         const next = placePiece(state, piece.id, slot.id);
         setBuildState(next);
         playCorrectSoundIfEnabled(settings);
@@ -285,7 +297,7 @@ export default function CharacterBuildScreen({ navigation, route }) {
       }
       return false; // springs back to start
     },
-    [settings, slotRects, finishCompletion]
+    [settings, rectForSlotId, finishCompletion]
   );
 
   const placedCount = getPlacedPieceCount(buildState);

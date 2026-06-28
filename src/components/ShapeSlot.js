@@ -1,12 +1,24 @@
 // A single target slot on the build board.
-// Shows a soft "ghost" target when empty, a glow when highlighted,
-// and the full-color shape once the matching piece is placed.
+// Empty slots show a soft colored "ghost" of the shape so the target is
+// always clearly visible (even over an already-placed piece). When the
+// matching piece is placed, the slot shows the full-color shape.
 
 import React from 'react';
 import { View } from 'react-native';
 
 import colors from '../theme/colors';
 import { getShapeColor } from '../data/shapeItems';
+
+// Convert a #RRGGBB hex into an rgba() string with the given alpha.
+function tint(hex, alpha) {
+  if (typeof hex !== 'string' || hex[0] !== '#' || hex.length < 7) {
+    return `rgba(120,135,148,${alpha})`;
+  }
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
 
 export default function ShapeSlot({ slot, scale = 1, placed = false, highlighted = false }) {
   const fill = getShapeColor(slot?.colorKey);
@@ -21,7 +33,7 @@ export default function ShapeSlot({ slot, scale = 1, placed = false, highlighted
     borderRadius = Math.max(w, h) / 2;
   }
 
-  // The highlight halo behind the slot (rounded soft box).
+  // The highlight halo behind the slot (rounded soft box) when active.
   const halo = highlighted ? (
     <View
       pointerEvents="none"
@@ -35,7 +47,7 @@ export default function ShapeSlot({ slot, scale = 1, placed = false, highlighted
         backgroundColor: colors.highlight,
         borderWidth: 3,
         borderColor: colors.outline,
-        opacity: 0.9,
+        opacity: 0.95,
       }}
     />
   ) : null;
@@ -57,7 +69,8 @@ export default function ShapeSlot({ slot, scale = 1, placed = false, highlighted
             borderBottomWidth: h,
             borderLeftColor: 'transparent',
             borderRightColor: 'transparent',
-            borderBottomColor: placed ? fill : 'rgba(120,135,148,0.25)',
+            // Empty: faded colored ghost. Placed: full color.
+            borderBottomColor: placed ? fill : tint(fill, 0.4),
           }}
         />
       </View>
@@ -75,10 +88,11 @@ export default function ShapeSlot({ slot, scale = 1, placed = false, highlighted
           width: w,
           height: h,
           borderRadius,
-          backgroundColor: placed ? fill : 'transparent',
-          borderWidth: placed ? 0 : 2,
-          borderColor: 'rgba(120,135,148,0.35)',
-          borderStyle: placed ? 'solid' : 'dashed',
+          // Empty: faint colored tint so the target is visible.
+          backgroundColor: placed ? fill : tint(fill, 0.18),
+          borderWidth: placed ? 0 : 3,
+          borderColor: placed ? 'transparent' : fill,
+          borderStyle: 'dashed',
         }}
       />
     </View>
